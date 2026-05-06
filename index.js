@@ -14,7 +14,18 @@ app.use(express.json())
 app.use('/api/peliculas', peliculasRouter)
 
 // Ruta de estadísticas (no pertenece a peliculasRouter, pero podrías moverla también)
-app.get('/api/estadisticas', require('./src/controllers/peliculasController').obtenerEstadisticas)
+app.get('/api/estadisticas', async (req, res, next) => {
+  try {
+    const stats = await peliculaService.obtenerEstadisticas()
+    res.json(stats)
+  } catch (err) {
+    next(err)
+  }
+})
+
+app.get('/', (req, res) => {
+  res.send('API de películas funcionando')
+})
 
 // 404 global
 app.use((req, res) => {
