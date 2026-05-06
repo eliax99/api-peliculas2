@@ -1,8 +1,6 @@
-¿Por qué es mejor tener el controlador separado de las rutas?
-Porque el código queda más ordenado y es más fácil de entender y mantener.
-
-Si mañana quisieras cambiar los datos en memoria por una base de datos PostgreSQL, ¿en qué archivo harías el cambio principalmente?
-En data/peliculas.js, porque ahí se manejan los datos.
-
-¿Qué pasaría si en el router tuvieras /:id antes que /:id/resenas? Pruébalo y describe el resultado.
-Que Express coge /:id primero y la ruta de reseñas no funciona bien.
+1. ¿Por qué el mensaje de error del login es genérico?
+Si dijera "email incorrecto" o "contraseña incorrecta" por separado, un atacante sabría qué parte falló y tendría más información para atacar. Con "Credenciales incorrectas" no sabe nada.
+2. ¿Qué información NO guardar en el payload del JWT?
+La contraseña o el hash de la contraseña. El JWT no está cifrado, cualquiera puede leer su contenido (por ejemplo en jwt.io), así que nunca metas datos sensibles ahí.
+3. ¿Por qué usamos bcrypt.compare en lugar de hashear y comparar con ===?
+Porque bcrypt añade un salt aleatorio cada vez que hashea, entonces el mismo texto genera hashes distintos. Si hasheamos y comparamos con === nunca van a coincidir aunque la contraseña sea correcta. bcrypt.compare sabe hacer la comparación bien.

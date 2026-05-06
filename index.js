@@ -3,28 +3,26 @@ require('dotenv').config()
 const express = require('express')
 
 const peliculasRouter = require('./src/routes/peliculas')
+const authRouter = require('./src/routes/auth')
 
 const app = express()
 const PORT = process.env.PORT || 3000
 
-// Middleware global
+// Middleware global — SIEMPRE antes de los routers
 app.use(express.json())
 
 // Rutas
+app.use('/api/auth', authRouter)
 app.use('/api/peliculas', peliculasRouter)
-
-// Ruta de estadísticas (no pertenece a peliculasRouter, pero podrías moverla también)
-app.get('/api/estadisticas', async (req, res, next) => {
-  try {
-    const stats = await peliculaService.obtenerEstadisticas()
-    res.json(stats)
-  } catch (err) {
-    next(err)
-  }
-})
 
 app.get('/', (req, res) => {
   res.send('API de películas funcionando')
+})
+
+// Manejador de errores global
+app.use((err, req, res, next) => {
+  const status = err.statusCode || 500
+  res.status(status).json({ error: err.message })
 })
 
 // 404 global

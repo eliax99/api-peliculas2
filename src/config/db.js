@@ -1,6 +1,5 @@
 // src/config/db.js
 
-require('./src/config/db') // Esto ejecuta el pool.connect de verificación
 const { Pool } = require('pg')
 
 
