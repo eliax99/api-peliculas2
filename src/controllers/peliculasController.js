@@ -1,139 +1,201 @@
 // src/controllers/peliculasController.js
-const db = require('../data/peliculas')
+const pool = require('../config/db')
+const AppError = require('../utils/AppError')
 
 // GET /api/peliculas
-const listarPeliculas = (req, res) => {
-  const { genero } = req.query
-  const peliculas = db.getAll(genero)
-  res.json(peliculas)
+const listarPeliculas = async (req, res, next) => {
+  try {
+    const { genero } = req.query
+
+    let query = `
+      SELECT p.id, p.titulo, p.anio, p.nota, p.created_at,
+             d.nombre AS director,
+             g.nombre AS genero, g.slug AS genero_slug
+      FROM peliculas p
+      LEFT JOIN directores d ON d.id = p.director_id
+      LEFT JOIN generos g ON g.id = p.genero_id
+    `
+    const params = []
+
+    if (genero) {
+      query += ` WHERE g.slug = $1`
+      params.push(genero)
+    }
+
+    query += ` ORDER BY p.id ASC`
+
+    const { rows } = await pool.query(query, params)
+    res.json(rows)
+  } catch (err) {
+    next(err)
+  }
 }
 
 // GET /api/peliculas/:id
-const obtenerPelicula = (req, res) => {
-  const id = Number(req.params.id)
-  const pelicula = db.getById(id)
+const obtenerPelicula = async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT p.id, p.titulo, p.anio, p.nota, p.created_at,
+              d.nombre AS director,
+              g.nombre AS genero, g.slug AS genero_slug
+       FROM peliculas p
+       LEFT JOIN directores d ON d.id = p.director_id
+       LEFT JOIN generos g ON g.id = p.genero_id
+       WHERE p.id = $1`,
+      [req.params.id]
+    )
 
-  if (!pelicula) {
-    return res.status(404).json({ error: 'Película no encontrada' })
+    if (rows.length === 0) {
+      throw new AppError('Película no encontrada', 404)
+    }
+
+    res.json(rows[0])
+  } catch (err) {
+    next(err)
   }
-
-  res.json(pelicula)
 }
 
 // POST /api/peliculas
-const crearPelicula = (req, res) => {
-  const { titulo, director, anio, genero, nota } = req.body
+const crearPelicula = async (req, res, next) => {
+  try {
+    const { titulo, anio, nota, director, genero } = req.body
 
-  if (!titulo || !director || !anio || !genero) {
-    return res.status(400).json({
-      error: 'Los campos titulo, director, anio y genero son obligatorios'
-    })
+    if (!titulo || !anio) {
+      throw new AppError('titulo y anio son obligatorios', 400)
+    }
+
+    // Buscar director_id
+    let director_id = null
+    if (director) {
+      const d = await pool.query('SELECT id FROM directores WHERE nombre = $1', [director])
+      if (d.rows.length > 0) director_id = d.rows[0].id
+    }
+
+    // Buscar genero_id
+    let genero_id = null
+    if (genero) {
+      const g = await pool.query('SELECT id FROM generos WHERE slug = $1', [genero])
+      if (g.rows.length > 0) genero_id = g.rows[0].id
+    }
+
+    const { rows } = await pool.query(
+      `INSERT INTO peliculas (titulo, anio, nota, director_id, genero_id)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING *`,
+      [titulo, anio, nota || null, director_id, genero_id]
+    )
+
+    res.status(201).json(rows[0])
+  } catch (err) {
+    next(err)
   }
-
-  if (nota !== undefined && (nota < 0 || nota > 10)) {
-    return res.status(400).json({ error: 'La nota debe estar entre 0 y 10' })
-  }
-
-  const nueva = db.create({
-    titulo,
-    director,
-    anio: Number(anio),
-    genero,
-    nota: nota !== undefined ? Number(nota) : null
-  })
-
-  res.status(201).json(nueva)
 }
 
 // PUT /api/peliculas/:id
-const actualizarPelicula = (req, res) => {
-  const id = Number(req.params.id)
-  const { titulo, director, anio, genero, nota } = req.body
+const actualizarPelicula = async (req, res, next) => {
+  try {
+    const { titulo, anio, nota, director, genero } = req.body
 
-  if (!titulo || !director || !anio || !genero) {
-    return res.status(400).json({
-      error: 'PUT requiere todos los campos: titulo, director, anio, genero'
-    })
+    if (!titulo || !anio) {
+      throw new AppError('titulo y anio son obligatorios', 400)
+    }
+
+    // Buscar director_id
+    let director_id = null
+    if (director) {
+      const d = await pool.query('SELECT id FROM directores WHERE nombre = $1', [director])
+      if (d.rows.length > 0) director_id = d.rows[0].id
+    }
+
+    // Buscar genero_id
+    let genero_id = null
+    if (genero) {
+      const g = await pool.query('SELECT id FROM generos WHERE slug = $1', [genero])
+      if (g.rows.length > 0) genero_id = g.rows[0].id
+    }
+
+    const { rows } = await pool.query(
+      `UPDATE peliculas
+       SET titulo = $1, anio = $2, nota = $3, director_id = $4, genero_id = $5
+       WHERE id = $6
+       RETURNING *`,
+      [titulo, anio, nota || null, director_id, genero_id, req.params.id]
+    )
+
+    if (rows.length === 0) {
+      throw new AppError('Película no encontrada', 404)
+    }
+
+    res.json(rows[0])
+  } catch (err) {
+    next(err)
   }
-
-  const actualizada = db.update(id, { titulo, director, anio: Number(anio), genero, nota: nota ? Number(nota) : null })
-
-  if (!actualizada) {
-    return res.status(404).json({ error: 'Película no encontrada' })
-  }
-
-  res.json(actualizada)
 }
 
 // DELETE /api/peliculas/:id
-const eliminarPelicula = (req, res) => {
-  const id = Number(req.params.id)
-  const eliminada = db.delete(id)
+const eliminarPelicula = async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      'DELETE FROM peliculas WHERE id = $1 RETURNING *',
+      [req.params.id]
+    )
 
-  if (!eliminada) {
-    return res.status(404).json({ error: 'Película no encontrada' })
+    if (rows.length === 0) {
+      throw new AppError('Película no encontrada', 404)
+    }
+
+    res.json({ mensaje: 'Película eliminada', pelicula: rows[0] })
+  } catch (err) {
+    next(err)
   }
-
-  res.json({ mensaje: 'Película eliminada', pelicula: eliminada })
-}
-
-// GET /api/estadisticas
-const obtenerEstadisticas = (req, res) => {
-  res.json(db.getStats())
 }
 
 // GET /api/peliculas/:id/resenas
-const listarResenas = (req, res) => {
-  const peliculaId = Number(req.params.id)
-  const pelicula = db.getById(peliculaId)
+const listarResenas = async (req, res, next) => {
+  try {
+    const pelicula = await pool.query('SELECT titulo FROM peliculas WHERE id = $1', [req.params.id])
 
-  if (!pelicula) {
-    return res.status(404).json({ error: 'Película no encontrada' })
+    if (pelicula.rows.length === 0) {
+      throw new AppError('Película no encontrada', 404)
+    }
+
+    const { rows } = await pool.query(
+      'SELECT * FROM resenas WHERE pelicula_id = $1 ORDER BY created_at DESC',
+      [req.params.id]
+    )
+
+    res.json({ pelicula: pelicula.rows[0].titulo, resenas: rows })
+  } catch (err) {
+    next(err)
   }
-
-  const resenas = db.getResenas(peliculaId)
-  res.json({ pelicula: pelicula.titulo, resenas })
 }
 
 // POST /api/peliculas/:id/resenas
-const crearResena = (req, res) => {
-  const peliculaId = Number(req.params.id)
-  const pelicula = db.getById(peliculaId)
+const crearResena = async (req, res, next) => {
+  try {
+    const pelicula = await pool.query('SELECT id FROM peliculas WHERE id = $1', [req.params.id])
 
-  if (!pelicula) {
-    return res.status(404).json({ error: 'Película no encontrada' })
+    if (pelicula.rows.length === 0) {
+      throw new AppError('Película no encontrada', 404)
+    }
+
+    const { autor, texto, puntuacion } = req.body
+
+    if (!autor || !texto || puntuacion === undefined) {
+      throw new AppError('autor, texto y puntuacion son obligatorios', 400)
+    }
+
+    const { rows } = await pool.query(
+      `INSERT INTO resenas (pelicula_id, autor, texto, puntuacion)
+       VALUES ($1, $2, $3, $4)
+       RETURNING *`,
+      [req.params.id, autor, texto, puntuacion]
+    )
+
+    res.status(201).json(rows[0])
+  } catch (err) {
+    next(err)
   }
-
-  const { autor, texto, puntuacion } = req.body
-
-  if (!autor || !texto || puntuacion === undefined) {
-    return res.status(400).json({
-      error: 'Los campos autor, texto y puntuacion son obligatorios'
-    })
-  }
-
-  if (puntuacion < 1 || puntuacion > 10) {
-    return res.status(400).json({ error: 'La puntuacion debe ser entre 1 y 10' })
-  }
-
-  const nueva = db.createResena(peliculaId, {
-    autor,
-    texto,
-    puntuacion: Number(puntuacion)
-  })
-
-  res.status(201).json(nueva)
-}
-
-module.exports = {
-  listarPeliculas,
-  obtenerPelicula,
-  crearPelicula,
-  actualizarPelicula,
-  eliminarPelicula,
-  obtenerEstadisticas,
-  listarResenas,
-  crearResena
 }
 
 // GET /api/estadisticas/directores
@@ -149,7 +211,6 @@ const estadisticasDirectores = async (req, res, next) => {
       FROM directores d
       JOIN peliculas p ON p.director_id = d.id
       GROUP BY d.id, d.nombre
-      HAVING COUNT(p.id) >= 1
       ORDER BY nota_media DESC
     `)
     res.json(rows)
@@ -184,7 +245,13 @@ const estadisticasGeneros = async (req, res, next) => {
 }
 
 module.exports = {
-  // ... exports anteriores ...
+  listarPeliculas,
+  obtenerPelicula,
+  crearPelicula,
+  actualizarPelicula,
+  eliminarPelicula,
+  listarResenas,
+  crearResena,
   estadisticasDirectores,
   estadisticasGeneros
 }

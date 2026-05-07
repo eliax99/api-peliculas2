@@ -1,14 +1,11 @@
-Pregunta: ¿Qué películas tienen usuarios más entusiastas que la crítica? ¿Y al revés?
-La que más Roma y la que menos Barbie.
+¿Qué ventaja tiene escribir los tests ANTES de la implementación? Describe una situación donde haberlos escrito después habría escondido un bug.
 
-1. ¿Cuándo es contraproducente crear un índice?
-Cuando la tabla tiene muchas escrituras (INSERT, UPDATE, DELETE). Cada vez que escribes, PostgreSQL tiene que actualizar también el índice, lo que lo hace más lento. En una tabla donde casi solo lees merece la pena, pero si escribes constantemente el índice cuesta más de lo que ayuda.
-2. RANK() vs DENSE_RANK()
-Con RANK() si dos películas empatan en el puesto 1, la siguiente es la 3 (se salta el 2). Con DENSE_RANK() la siguiente sería la 2, sin saltos.
-Ejemplo con nuestros datos: si Inception y Interstellar empatan con nota 8.8 y 8.6... bueno, no empatan, pero si empatasen:
+Defines qué debe hacer el código antes de escribirlo, no al revés. Si los escribes después, adaptas los tests a lo que ya tienes y es fácil pasar bugs por alto. Por ejemplo, si listarFavoritos devolviera los favoritos de todos los usuarios, escribiendo el test después probablemente nunca lo detectarías.
 
-RANK() → 1, 1, 3
-DENSE_RANK() → 1, 1, 2
+¿Por qué usamos una base de datos de test separada en lugar de mockear el módulo db? ¿Cuándo sí tendría sentido mockear?
 
-3. ¿Por qué AFTER en lugar de BEFORE?
-Porque queremos guardar en la auditoría lo que realmente pasó. Con BEFORE el cambio todavía no se aplicó y podría cancelarse. Con AFTER ya está confirmado en la base de datos, así que el registro de auditoría refleja algo que de verdad ocurrió.
+Para verificar que el SQL es correcto y que las restricciones funcionan de verdad. Un mock no detectaría errores en las queries. Tendría sentido mockear cuando solo quieres probar la lógica del controlador de forma aislada.
+
+¿Qué es el error de PostgreSQL con código 23505 y por qué lo capturamos específicamente?
+
+Es el código que lanza PostgreSQL cuando se viola una restricción UNIQUE. Lo capturamos para devolver un 409 con un mensaje claro en lugar de un 500 genérico.
